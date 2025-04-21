@@ -1,5 +1,5 @@
 # 1) Instala las librerías necesarias
-!pip install google-genai pillow requests ipywidgets
+pip install google-genai pillow requests ipywidgets
 
 # 2) Interfaz completa con widgets
 from google import genai
