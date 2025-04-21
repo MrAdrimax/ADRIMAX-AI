@@ -1,135 +1,83 @@
-# 1) Instala las librerías necesarias
-pip install google-genai pillow requests ipywidgets
-
-# 2) Interfaz completa con widgets
-from google import genai
-from google.genai import types
+import streamlit as st
+import google.generativeai as genai
+from google.generativeai import types
 import requests
 from io import BytesIO
 from PIL import Image as PILImage
-from IPython.display import display, clear_output, Image as IPyImage
-import ipywidgets as widgets
 
-# --- Inputs ---
-api_key = widgets.Password(
-    placeholder='Tu API Key de Google',
-    description='API Key:',
-    layout=widgets.Layout(width='70%')
-)
-model_text = widgets.Dropdown(
-    options=['gemini-2.0-flash','gemini-2.0-turbo'],
-    value='gemini-2.0-flash',
-    description='Modelo texto:'
-)
-model_image = widgets.Dropdown(
-    options=['gemini-2.0-flash-exp-image-generation'],
-    value='gemini-2.0-flash-exp-image-generation',
-    description='Modelo img:'
-)
+# Configuración de la API Key
+api_key = st.text_input("AIzaSyDb82ILBtthgNiDkDGa2MiPsPCnDZ3wWeY", type="password")
 
-text_prompt = widgets.Textarea(
-    placeholder='Escribe tu prompt de texto aquí',
-    description='Prompt texto:',
-    layout=widgets.Layout(width='100%', height='80px')
-)
-btn_text = widgets.Button(description='Generar Texto', button_style='info')
+# Selección de modelos
+model_text = st.selectbox("🧠 Modelo de texto", ['gemini-2.0-flash', 'gemini-2.0-turbo'])
+model_image = st.selectbox("🖼️ Modelo de imagen", ['gemini-2.0-flash-exp-image-generation'])
 
-img_prompt = widgets.Text(
-    placeholder='Prompt para generar imagen',
-    description='Prompt img:',
-    layout=widgets.Layout(width='100%')
-)
-btn_image = widgets.Button(description='Generar Imagen', button_style='success')
-
-img_url = widgets.Text(
-    placeholder='URL de imagen a analizar',
-    description='URL imagen:',
-    layout=widgets.Layout(width='100%')
-)
-btn_analyze = widgets.Button(description='Analizar Imagen', button_style='warning')
-
-output = widgets.Output()
-
-# --- Mostrar inputs ---
-display(widgets.VBox([
-    api_key, model_text, model_image,
-    widgets.HTML("<hr><b>🔹 Texto</b>"),
-    text_prompt, btn_text,
-    widgets.HTML("<hr><b>🔹 Imagen</b>"),
-    img_prompt, btn_image,
-    widgets.HTML("<hr><b>🔹 Análisis</b>"),
-    img_url, btn_analyze,
-    widgets.HTML("<hr>"),
-    output
-]))
-
-# --- Función para crear cliente ---
+# Inicialización del cliente
 def init_client():
-    return genai.Client(api_key=api_key.value)
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel
 
-# --- Callbacks ---
-def on_text(_):
-    with output:
-        clear_output()
-        if not api_key.value:
-            print("❌ Pon tu API Key arriba.")
-            return
-        client = init_client()
-        print("⏳ Generando texto…")
-        resp = client.models.generate_content(
-            model=model_text.value,
-            contents=text_prompt.value
-        )
-        clear_output()
-        print("✅ Texto generado:\n")
-        print(resp.text)
+# Generación de texto
+st.markdown("## ✍️ Generar Texto")
+text_prompt = st.text_area("Escribe tu prompt de texto aquí")
+if st.button("Generar Texto"):
+    if not api_key:
+        st.error("❌ Por favor, introduce tu API Key.")
+    elif not text_prompt:
+        st.warning("⚠️ El prompt de texto está vacío.")
+    else:
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_text)
+            response = model.generate_content(text_prompt)
+            st.success("✅ Texto generado:")
+            st.write(response.text)
+        except Exception as e:
+            st.error(f"❌ Error al generar texto: {e}")
 
-def on_image(_):
-    with output:
-        clear_output()
-        if not api_key.value:
-            print("❌ Pon tu API Key arriba.")
-            return
-        client = init_client()
-        print("⏳ Generando imagen…")
-        # <-- Aquí está la corrección: pedimos TEXT + IMAGE
-        resp = client.models.generate_content(
-            model=model_image.value,
-            contents=img_prompt.value,
-            config=types.GenerateContentConfig(
-                response_modalities=['TEXT','IMAGE']
+# Generación de imagen
+st.markdown("## 🎨 Generar Imagen")
+img_prompt = st.text_input("Escribe tu prompt para generar una imagen")
+if st.button("Generar Imagen"):
+    if not api_key:
+        st.error("❌ Por favor, introduce tu API Key.")
+    elif not img_prompt:
+        st.warning("⚠️ El prompt de imagen está vacío.")
+    else:
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_image)
+            response = model.generate_content(
+                contents=img_prompt,
+                generation_config=types.GenerationConfig(response_mime_type="image/jpeg")
             )
-        )
-        clear_output()
-        # Mostramos solo la parte de imagen
-        for part in resp.candidates[0].content.parts:
-            if part.inline_data:
-                img = PILImage.open(BytesIO(part.inline_data.data))
-                display(img)
-                break
+            image_data = response.candidates[0].content.parts[0].inline_data.data
+            image = PILImage.open(BytesIO(image_data))
+            st.image(image, caption="🖼️ Imagen generada")
+        except Exception as e:
+            st.error(f"❌ Error al generar imagen: {e}")
 
-def on_analyze(_):
-    with output:
-        clear_output()
-        if not api_key.value:
-            print("❌ Pon tu API Key arriba.")
-            return
-        client = init_client()
-        print("⏳ Analizando imagen…")
-        img_data = requests.get(img_url.value).content
-        resp = client.models.generate_content(
-            model=model_text.value,
-            contents=[
-                "Describe qué ves en esta imagen:",
-                types.Part.from_bytes(data=img_data, mime_type="image/jpeg")
-            ]
-        )
-        clear_output()
-        display(IPyImage(img_data))
-        print("\n✅ Descripción:\n")
-        print(resp.text)
-
-# --- Asignar callbacks a los botones ---
-btn_text.on_click(on_text)
-btn_image.on_click(on_image)
-btn_analyze.on_click(on_analyze)
+# Análisis de imagen
+st.markdown("## 🔍 Analizar Imagen")
+img_url = st.text_input("Introduce la URL de la imagen a analizar")
+if st.button("Analizar Imagen"):
+    if not api_key:
+        st.error("❌ Por favor, introduce tu API Key.")
+    elif not img_url:
+        st.warning("⚠️ La URL de la imagen está vacía.")
+    else:
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_text)
+            img_data = requests.get(img_url).content
+            response = model.generate_content(
+                contents=[
+                    "Describe qué ves en esta imagen:",
+                    types.Part.from_bytes(data=img_data, mime_type="image/jpeg")
+                ]
+            )
+            st.image(img_url, caption="🖼️ Imagen a analizar")
+            st.success("✅ Descripción:")
+            st.write(response.text)
+        except Exception as e:
+            st.error(f"❌ Error al analizar imagen: {e}")
