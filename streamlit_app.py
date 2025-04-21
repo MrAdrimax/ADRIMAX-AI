@@ -36,26 +36,37 @@ if st.button("Generar Texto"):
             st.error(f"❌ Error al generar texto: {e}")
 
 # Generación de imagen
-st.markdown("## 🎨 Generar Imagen")
-img_prompt = st.text_input("Escribe tu prompt para generar una imagen")
+import streamlit as st
+import google.generativeai as genai
+from PIL import Image
+import requests
+from io import BytesIO
+
+# Configura tu API key
+genai.configure(api_key="AIzaSyDb82ILBtthgNiDkDGa2MiPsPCnDZ3wWeY")
+
+# Inicializa el modelo Imagen 3
+model = genai.GenerativeModel("imagen-3")
+
+# Interfaz de Streamlit
+st.title("Generador de Imágenes con Imagen 3")
+
+prompt = st.text_input("Escribe tu prompt para generar una imagen:")
+
 if st.button("Generar Imagen"):
-    if not api_key:
-        st.error("❌ Por favor, introduce tu API Key.")
-    elif not img_prompt:
-        st.warning("⚠️ El prompt de imagen está vacío.")
-    else:
+    if prompt:
         try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(model_image)
-            response = model.generate_content(
-                contents=img_prompt,
-                generation_config=types.GenerationConfig(response_mime_type="image/jpeg")
-            )
-            image_data = response.candidates[0].content.parts[0].inline_data.data
-            image = PILImage.open(BytesIO(image_data))
-            st.image(image, caption="🖼️ Imagen generada")
+            response = model.generate_content(prompt)
+            # Suponiendo que la respuesta contiene una URL de la imagen generada
+            image_url = response.text  # Ajusta esto según la estructura real de la respuesta
+            image_response = requests.get(image_url)
+            image = Image.open(BytesIO(image_response.content))
+            st.image(image, caption="Imagen Generada")
         except Exception as e:
-            st.error(f"❌ Error al generar imagen: {e}")
+            st.error(f"Error al generar la imagen: {e}")
+    else:
+        st.warning("Por favor, ingresa un prompt para generar una imagen.")
+
 
 # Análisis de imagen
 st.markdown("## 🔍 Analizar Imagen")
